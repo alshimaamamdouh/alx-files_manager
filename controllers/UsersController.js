@@ -1,35 +1,27 @@
-const crypto = require('crypto');
+const redisClient = require('../utils/redis'); // Assuming you have a Redis utility
 const dbClient = require('../utils/db'); // Assuming you have a DB utility
 
 class UsersController {
-  static async postNew(req, res) {
-    const { email, password } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ error: 'Missing email' });
+  static async getMe(req, res) {
+    const token = req.headers['x-token'];
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    if (!password) {
-      return res.status(400).json({ error: 'Missing password' });
+    const key = `auth_${token}`;
+    const userId = await redisClient.get(key);
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Check if the email already exists
-    const existingUser = await dbClient.findUserByEmail(email);
-    if (existingUser) {
-      return res.status(400).json({ error: 'Already exist' });
+    const user = await dbClient.findUserById(userId);
+
+    if (!user) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Hash the password
-    const hashedPassword = crypto.createHash('sha1').update(password).digest('hex');
-
-    // Create the new user
-    const newUser = await dbClient.createUser({ email, password: hashedPassword });
-
-    // Respond with the new user
-    res.status(201).json({
-      id: newUser._id,
-      email: newUser.email
-    });
+    res.status(200).json({ id: user._id, email: user.email });
   }
 }
 
